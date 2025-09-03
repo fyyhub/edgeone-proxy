@@ -59,6 +59,7 @@ export async function onRequest(context) {
     // 对于静态资源和文件下载，确保保持重要头部
     const contentType = response.headers.get('content-type');
     const contentDisposition = response.headers.get('content-disposition');
+    const contentEncoding = response.headers.get('content-encoding');
     
     if (contentType) {
       newResponse.headers.set('Content-Type', contentType);
@@ -66,6 +67,11 @@ export async function onRequest(context) {
     
     if (contentDisposition) {
       newResponse.headers.set('Content-Disposition', contentDisposition);
+    }
+    
+    // 移除可能导致解码问题的编码头部
+    if (contentEncoding) {
+      newResponse.headers.delete('content-encoding');
     }
     
     return newResponse;
