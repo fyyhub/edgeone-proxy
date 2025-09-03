@@ -59,7 +59,6 @@ export async function onRequest(context) {
     // 对于静态资源和文件下载，确保保持重要头部
     const contentType = response.headers.get('content-type');
     const contentDisposition = response.headers.get('content-disposition');
-    const contentEncoding = response.headers.get('content-encoding');
     
     if (contentType) {
       newResponse.headers.set('Content-Type', contentType);
@@ -69,10 +68,11 @@ export async function onRequest(context) {
       newResponse.headers.set('Content-Disposition', contentDisposition);
     }
     
-    // 移除可能导致解码问题的编码头部
-    if (contentEncoding) {
-      newResponse.headers.delete('content-encoding');
-    }
+    // 删除可能导致HTML加载问题的安全策略头部（参考dd.js的处理方式）
+    newResponse.headers.delete('content-security-policy');
+    newResponse.headers.delete('content-security-policy-report-only');
+    newResponse.headers.delete('clear-site-data');
+    newResponse.headers.delete('content-encoding');
     
     return newResponse;
     
