@@ -30,7 +30,7 @@ export async function onRequest(context) {
     // 验证 URL 格式
     const targetUrlObj = new URL(targetUrl);
     
-    // 创建代理请求，使用简化的头部处理
+    // 创建代理请求，复制原始请求的方法、头部和内容
     const proxyRequest = new Request(targetUrl, {
       method: request.method,
       headers: request.headers,
@@ -38,7 +38,7 @@ export async function onRequest(context) {
       redirect: 'follow'
     });
     
-    // 设置目标域名的 Host 头部
+    // 设置 Host 头部为目标域名
     proxyRequest.headers.set('Host', targetUrlObj.hostname);
     
     // 发送代理请求并获取响应
@@ -55,6 +55,18 @@ export async function onRequest(context) {
     newResponse.headers.set('Access-Control-Allow-Origin', '*');
     newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
     newResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    
+    // 对于静态资源和文件下载，确保保持重要头部
+    const contentType = response.headers.get('content-type');
+    const contentDisposition = response.headers.get('content-disposition');
+    
+    if (contentType) {
+      newResponse.headers.set('Content-Type', contentType);
+    }
+    
+    if (contentDisposition) {
+      newResponse.headers.set('Content-Disposition', contentDisposition);
+    }
     
     return newResponse;
     
