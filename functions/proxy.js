@@ -1,47 +1,87 @@
 /**
- * This is the final, correct version of the proxy function.
- * It leverages a professional third-party proxy to handle anti-bot measures.
+ * EdgeOne 云函数 HTTP 请求透传代理
+ * 功能：将传入的 URL 参数作为目标地址，透传 HTTP 请求并返回响应内容
+ * 使用方式：访问 https://your-domain.com/proxy-function?url=http://target-site.com
  */
+
 export async function onRequest(context) {
-    const { request } = context;
+  const { request } = context;
+  const url = new URL(request.url);
+  
+  // 获取目标 URL 参数
+  const targetUrl = url.searchParams.get('url');
+  
+  // 如果没有提供目标 URL，返回错误信息
+  if (!targetUrl) {
+    return new Response(JSON.stringify({
+      error: 'Missing url parameter',
+      usage: 'Please provide a target URL using ?url=http://example.com'
+    }), {
+      status: 400,
+      headers: {
+        'content-type': 'application/json; charset=UTF-8',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  }
+  
+  try {
+    // 验证 URL 格式
+    const targetUrlObj = new URL(targetUrl);
+    
+    // 创建代理请求，复制原始请求的方法、头部和内容
+    const proxyRequest = new Request(targetUrl, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+      redirect: 'follow'
+    });
+    
+    // 设置 Host 头部为目标域名
+    proxyRequest.headers.set('Host', targetUrlObj.hostname);
+    
+    // 发送代理请求并获取响应
+    const response = await fetch(proxyRequest);
+    
+    // 创建新的响应对象，复制原始响应的头部和内容
+    const newResponse = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    });
+    
+    // 添加 CORS 头部，允许跨域访问
+    newResponse.headers.set('Access-Control-Allow-Origin', '*');
+    newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
+    newResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    
+    return newResponse;
+    
+  } catch (error) {
+    // 处理错误情况
+    return new Response(JSON.stringify({
+      error: 'Failed to fetch target URL',
+      message: error.message,
+      targetUrl: targetUrl
+    }), {
+      status: 500,
+      headers: {
+        'content-type': 'application/json; charset=UTF-8',
+        'Access-Control-Allow-Origin': '*',
+      }
+    });
+  }
+}
 
-    try {
-        const requestUrl = new URL(request.url);
-        const targetUrlParam = requestUrl.searchParams.get('url');
-
-        if (!targetUrlParam) {
-            return new Response("Query parameter 'url' is missing.", { status: 400 });
-        }
-
-        // **CRITICAL FIX: Use a professional proxy service.**
-        const proxyServiceUrl = 'https://cors-anywhere.herokuapp.com/';
-        const actualUrlStr = proxyServiceUrl + targetUrlParam;
-
-        // We can now use a much simpler request, as the proxy service will handle headers.
-        const modifiedRequest = new Request(actualUrlStr, {
-            headers: {
-                'Origin': requestUrl.origin, // The proxy service requires an Origin header.
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            method: request.method,
-            body: (request.method === 'POST' || request.method === 'PUT') ? request.body : null,
-            redirect: 'follow' // We can let the proxy service handle redirects.
-        });
-
-        const response = await fetch(modifiedRequest);
-
-        // We still need to filter Set-Cookie to avoid browser security issues.
-        const finalHeaders = new Headers(response.headers);
-        finalHeaders.delete('Set-Cookie');
-
-        // Since the third-party proxy handles all content, we don't need our own HTML rewriter.
-        return new Response(response.body, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: finalHeaders
-        });
-
-    } catch (error) {
-        return new Response(`Proxy Error: ${error.message}`, { status: 500 });
+// 处理 OPTIONS 请求（CORS 预检请求）
+export function onRequestOptions(context) {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+      'Access-Control-Max-Age': '86400',
     }
+  });
 }
